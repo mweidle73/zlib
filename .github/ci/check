@@ -1,0 +1,33 @@
+#!/bin/sh
+
+set -eu
+
+WORK_DIR=$(mktemp -d)
+SOURCE_DIR="$WORK_DIR/source"
+
+cleanup()
+{
+    rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT HUP INT TERM
+
+echo "ci: preparing a private writable zlib source tree"
+cp -a /source "$SOURCE_DIR"
+
+echo "ci: configuring zlib 1.2.11"
+cd "$SOURCE_DIR"
+./configure
+
+echo "ci: building zlib"
+make -j8
+
+echo "ci: running the upstream test target"
+make test
+
+echo "ci: checking a command-line compression round trip"
+printf 'Abuild zlib compatibility fixture\n' > "$WORK_DIR/payload"
+./minigzip < "$WORK_DIR/payload" > "$WORK_DIR/payload.gz"
+./minigzip -d < "$WORK_DIR/payload.gz" > "$WORK_DIR/restored"
+cmp "$WORK_DIR/payload" "$WORK_DIR/restored"
+
+echo "ci: all historical Abuild zlib checks passed"
